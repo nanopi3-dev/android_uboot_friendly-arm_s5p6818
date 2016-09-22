@@ -644,7 +644,7 @@
 			"system:ext4:0x04100000,0x02F200000;"	\
 			"cache:ext4:0x33300000,0x1AC00000;"		\
 			"misc:emmc:0x4E000000,0x00800000;"		\
-			"recovery:emmc:0x4E900000,0x01600000;"	\
+			"recovery:ext4:0x4E900000,0x01600000;"	\
 			"userdata:ext4:0x50000000,0x0;"
 #endif
 
@@ -689,7 +689,7 @@
  */
 #define CONFIG_RECOVERY_BOOT
 #if defined (CONFIG_RECOVERY_BOOT)
-	#define CONFIG_CMD_RECOVERY_BOOT "$bloader 0x48000000 $kernel;$bloader 0x49000000 ramdisk-recovery.img;bootm 0x48000000"
+	#define CONFIG_CMD_RECOVERY_BOOT "ext4load mmc 0:6 0x48000000 uImage;ext4load mmc 0:6 0x49000000 ramdisk-recovery.img;bootm 0x48000000"
 #endif
 
 /*-----------------------------------------------------------------------

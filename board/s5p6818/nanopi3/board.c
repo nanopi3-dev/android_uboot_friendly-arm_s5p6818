@@ -505,15 +505,15 @@ int board_late_init(void)
 	bd_update_env();
 
 #if defined(CONFIG_RECOVERY_BOOT)
-    if (RECOVERY_SIGNATURE == readl(SCR_RESET_SIG_READ)) {
-        writel((-1UL), SCR_RESET_SIG_RESET); /* clear */
+	if (RECOVERY_SIGNATURE == readl(SCR_RESET_SIG_READ)) {
+		writel((-1UL), SCR_RESET_SIG_RESET); /* clear */
 
-        printf("RECOVERY BOOT\n");
-        bd_display_run(CONFIG_CMD_LOGO_WALLPAPERS, CFG_LCD_PRI_PWM_DUTYCYCLE, 1);
-        run_command(CONFIG_CMD_RECOVERY_BOOT, 0);	/* recovery boot */
-    }
+		printf("RECOVERY BOOT\n");
+		bd_display_run(CONFIG_CMD_LOGO_WALLPAPERS, CFG_LCD_PRI_PWM_DUTYCYCLE, 1);
+		run_command(CONFIG_CMD_RECOVERY_BOOT, 0);	/* recovery boot */
+	}
 
-    writel((-1UL), SCR_RESET_SIG_RESET);
+	writel((-1UL), SCR_RESET_SIG_RESET);
 #endif /* CONFIG_RECOVERY_BOOT */
 
 #if defined(CONFIG_BAT_CHECK)
@@ -521,8 +521,8 @@ int board_late_init(void)
 		int ret = 0;
 		int bat_check_skip = 0;
 
-	    // psw0523 for cts
-	    // bat_check_skip = 1;
+		// psw0523 for cts
+		// bat_check_skip = 1;
 
 #if defined(CONFIG_DISPLAY_OUT)
 		ret = power_battery_check(bat_check_skip, bd_display_run);
