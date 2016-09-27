@@ -692,6 +692,16 @@
 	#define CONFIG_CMD_RECOVERY_BOOT "$bloader 0x48000000 $kernel;$bloader 0x49000000 ramdisk-recovery.img;bootm 0x48000000"
 #endif
 
+
+/*-----------------------------------------------------------------------
+ * Fastboot boot
+ */
+#define CONFIG_FASTBOOT_BOOT
+#if defined (CONFIG_FASTBOOT_BOOT)
+	#define CONFIG_CMD_FASTBOOT_BOOT "fastboot"
+#endif
+
+
 /*-----------------------------------------------------------------------
  * Debug message
  */

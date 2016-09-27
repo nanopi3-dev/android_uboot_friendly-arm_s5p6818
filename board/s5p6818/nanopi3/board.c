@@ -491,6 +491,20 @@ int board_late_init(void)
 	run_command(boot, 0);
 #endif
 
+#if defined(CONFIG_FASTBOOT_BOOT)
+    if (FASTBOOT_SIGNATURE == readl(SCR_RESET_SIG_READ)) {
+        writel((-1UL), SCR_RESET_SIG_RESET); /* clear */
+
+        printf("FASTBOOT BOOT\n");
+        run_command(CONFIG_CMD_FASTBOOT_BOOT, 0);	/* fastboot boot */
+        writel((-1UL), SCR_RESET_SIG_RESET);
+
+        return 0;
+    }
+
+    writel((-1UL), SCR_RESET_SIG_RESET);
+#endif /* CONFIG_FASTBOOT_BOOT */
+
 	if (board_mmc_bootdev() == 0 && !getenv("firstboot")) {
 #ifdef CONFIG_LOADCMD_CH0
 		setenv("bloader", CONFIG_LOADCMD_CH0);
