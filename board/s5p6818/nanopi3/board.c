@@ -26,7 +26,6 @@
 #include <pwm.h>
 #include <asm/io.h>
 #include <asm/gpio.h>
-//#include <asm/sections.h>
 
 #include <platform.h>
 #include <mach-api.h>
@@ -50,8 +49,6 @@
 #endif
 
 DECLARE_GLOBAL_DATA_PTR;
-
-#include "eth.c"
 
 #if (0)
 #define DBGOUT(msg...)		{ printf("BD: " msg); }
@@ -379,33 +376,6 @@ int power_init_board(void)
 
 extern void	bd_display(void);
 
-static void auto_update(int io, int wait)
-{
-	unsigned int grp = PAD_GET_GROUP(io);
-	unsigned int bit = PAD_GET_BITNO(io);
-	int level = 1, i = 0;
-	char *cmd = "fastboot";
-
-	for (i = 0; wait > i; i++) {
-		switch (io & ~(32-1)) {
-		case PAD_GPIO_A:
-		case PAD_GPIO_B:
-		case PAD_GPIO_C:
-		case PAD_GPIO_D:
-		case PAD_GPIO_E:
-			level = NX_GPIO_GetInputValue(grp, bit);	break;
-		case PAD_GPIO_ALV:
-			level = NX_ALIVE_GetInputValue(bit);	break;
-		};
-		if (level)
-			break;
-		mdelay(1);
-	}
-
-	if (i == wait)
-		run_command(cmd, 0);
-}
-
 void bd_display_run(char *cmd, int bl_duty, int bl_on)
 {
 	static int display_init = 0;
@@ -439,50 +409,6 @@ void bd_display_run(char *cmd, int bl_duty, int bl_on)
 	}
 }
 
-#ifdef CONFIG_CMD_NET
-static int bd_eth_init(void)
-{
-#if defined(CONFIG_DESIGNWARE_ETH)
-	u32 addr;
-
-	// Clock control
-	NX_CLKGEN_Initialize();
-	addr = NX_CLKGEN_GetPhysicalAddress(CLOCKINDEX_OF_DWC_GMAC_MODULE);
-	NX_CLKGEN_SetBaseAddress(CLOCKINDEX_OF_DWC_GMAC_MODULE, (void *)IO_ADDRESS(addr));
-
-	NX_CLKGEN_SetClockSource(CLOCKINDEX_OF_DWC_GMAC_MODULE, 0, 4);		// Sync mode for 100 & 10Base-T : External RX_clk
-	NX_CLKGEN_SetClockDivisor(CLOCKINDEX_OF_DWC_GMAC_MODULE, 0, 1);		// Sync mode for 100 & 10Base-T
-	NX_CLKGEN_SetClockOutInv(CLOCKINDEX_OF_DWC_GMAC_MODULE, 0, CFALSE);	// TX Clk invert off : 100 & 10Base-T
-	NX_CLKGEN_SetClockDivisorEnable(CLOCKINDEX_OF_DWC_GMAC_MODULE, CTRUE);
-
-	// Reset control
-	NX_RSTCON_Initialize();
-	addr = NX_RSTCON_GetPhysicalAddress();
-	NX_RSTCON_SetBaseAddress( (void *)IO_ADDRESS(addr));
-	NX_RSTCON_SetRST(RESETINDEX_OF_DWC_GMAC_MODULE_aresetn_i, RSTCON_ASSERT);
-	udelay(100);
-	NX_RSTCON_SetRST(RESETINDEX_OF_DWC_GMAC_MODULE_aresetn_i, RSTCON_NEGATE);
-	udelay(100);
-
-	// Set interrupt config.
-	gpio_direction_input(CFG_ETHER_GMAC_PHY_IRQ_NUM);
-
-	// Set GPIO nReset
-	gpio_direction_output(CFG_ETHER_GMAC_PHY_RST_NUM, 1);
-	udelay(100);
-	gpio_set_value(CFG_ETHER_GMAC_PHY_RST_NUM, 0);
-	udelay(100);
-	gpio_set_value(CFG_ETHER_GMAC_PHY_RST_NUM, 1);
-#endif  /* CONFIG_DESIGNWARE_ETH */
-
-	return 0;
-}
-#endif	/* CONFIG_CMD_NET */
-
-
-#define	UPDATE_KEY			(PAD_GPIO_ALV + 0)
-#define	UPDATE_CHECK_TIME	(3000)	/* ms */
-
 int board_late_init(void)
 {
 #if defined(CONFIG_SYS_MMC_BOOT_DEV)
@@ -491,26 +417,24 @@ int board_late_init(void)
 	run_command(boot, 0);
 #endif
 
-#if defined(CONFIG_FASTBOOT_BOOT)
-    if (FASTBOOT_SIGNATURE == readl(SCR_RESET_SIG_READ)) {
-        writel((-1UL), SCR_RESET_SIG_RESET); /* clear */
+#if defined(CONFIG_FASTBOOT)
+	if (FASTBOOT_SIGNATURE == readl(SCR_RESET_SIG_READ)) {
+		writel((-1UL), SCR_RESET_SIG_RESET); /* clear */
 
-        printf("FASTBOOT BOOT\n");
-        run_command(CONFIG_CMD_FASTBOOT_BOOT, 0);	/* fastboot boot */
-        writel((-1UL), SCR_RESET_SIG_RESET);
+		printf("FASTBOOT BOOT\n");
+		bd_display_run(CONFIG_CMD_LOGO_UPDATE, CFG_LCD_PRI_PWM_DUTYCYCLE, 1);
+		run_command("fastboot", 0);	/* fastboot boot */
+		writel((-1UL), SCR_RESET_SIG_RESET);
 
-        return 0;
-    }
+		return 0;
+	}
 
-    writel((-1UL), SCR_RESET_SIG_RESET);
-#endif /* CONFIG_FASTBOOT_BOOT */
+	writel((-1UL), SCR_RESET_SIG_RESET);
+#endif /* CONFIG_FASTBOOT */
 
 	if (board_mmc_bootdev() == 0 && !getenv("firstboot")) {
 #ifdef CONFIG_LOADCMD_CH0
 		setenv("bloader", CONFIG_LOADCMD_CH0);
-#endif
-#ifdef CONFIG_BOOTCMD_CH0
-		setenv("bootcmd", CONFIG_BOOTCMD_CH0);
 #endif
 		setenv("firstboot", "0");
 		saveenv();
@@ -519,51 +443,20 @@ int board_late_init(void)
 	bd_update_env();
 
 #if defined(CONFIG_RECOVERY_BOOT)
-    if (RECOVERY_SIGNATURE == readl(SCR_RESET_SIG_READ)) {
-        writel((-1UL), SCR_RESET_SIG_RESET); /* clear */
+	if (RECOVERY_SIGNATURE == readl(SCR_RESET_SIG_READ)) {
+		writel((-1UL), SCR_RESET_SIG_RESET); /* clear */
 
-        printf("RECOVERY BOOT\n");
-        bd_display_run(CONFIG_CMD_LOGO_WALLPAPERS, CFG_LCD_PRI_PWM_DUTYCYCLE, 1);
-        run_command(CONFIG_CMD_RECOVERY_BOOT, 0);	/* recovery boot */
-    }
-
-    writel((-1UL), SCR_RESET_SIG_RESET);
-#endif /* CONFIG_RECOVERY_BOOT */
-
-#if defined(CONFIG_BAT_CHECK)
-	{
-		int ret = 0;
-		int bat_check_skip = 0;
-
-	    // psw0523 for cts
-	    // bat_check_skip = 1;
-
-#if defined(CONFIG_DISPLAY_OUT)
-		ret = power_battery_check(bat_check_skip, bd_display_run);
-#else
-		ret = power_battery_check(bat_check_skip, NULL);
-#endif
-
-		if (ret == 1)
-			auto_update(UPDATE_KEY, UPDATE_CHECK_TIME);
+		printf("RECOVERY BOOT\n");
+		bd_display_run(CONFIG_CMD_LOGO_WALLPAPERS, CFG_LCD_PRI_PWM_DUTYCYCLE, 1);
+		run_command(CONFIG_CMD_RECOVERY_BOOT, 0);	/* recovery boot */
 	}
-#else /* CONFIG_BAT_CHECK */
+
+	writel((-1UL), SCR_RESET_SIG_RESET);
+#endif /* CONFIG_RECOVERY_BOOT */
 
 #if defined(CONFIG_DISPLAY_OUT)
 	bd_display_run(CONFIG_CMD_LOGO_WALLPAPERS, CFG_LCD_PRI_PWM_DUTYCYCLE, 1);
 #endif
-	onewire_set_backlight(127);
-
-#ifdef CONFIG_CMD_NET
-	bd_eth_init();
-#endif
-
-	/* Temp check gpio to update */
-	if (!getenv("autoupdate"))
-		auto_update(UPDATE_KEY, UPDATE_CHECK_TIME);
-
-#endif /* CONFIG_BAT_CHECK */
 
 	return 0;
 }
-
